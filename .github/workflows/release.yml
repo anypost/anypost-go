@@ -1,0 +1,31 @@
+name: Release
+
+# Go modules are published by pushing a semver tag (e.g. v0.1.0): the module
+# proxy fetches it on first request. Bump Version in version.go, tag the commit,
+# and push. This workflow gates the tag on a green test run, primes the module
+# proxy so `go get` works immediately, and cuts a GitHub release.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: test
+        run: go test -count=1 ./...
+      - name: Prime the module proxy
+        run: |
+          GOPROXY=proxy.golang.org go list -m "github.com/anypost/anypost-go@${GITHUB_REF_NAME}"
+      - name: Create GitHub release
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
