@@ -21,6 +21,24 @@ const (
 	EventClicked      EventType = "email.clicked"
 )
 
+// EventBot classifies a proxied open or click. Pure-noise machine traffic
+// (mailbox prefetchers, scanners) never becomes an event, so the only Kind a
+// customer ever sees is "proxy" — a real open whose origin is anonymized by a
+// mailbox image proxy (Gmail, Yahoo, etc.).
+type EventBot struct {
+	// Source is the detected mailbox image proxy, e.g. "google", "yahoo", "bing".
+	Source string `json:"source"`
+	// Kind is always "proxy" on customer-visible events.
+	Kind string `json:"kind"`
+}
+
+// EventTracking is the tracking metadata on email.opened / email.clicked
+// events, mirroring the webhook payload's data.tracking. Bot is set only when
+// the interaction came from a mailbox image proxy; a human open/click has no Bot.
+type EventTracking struct {
+	Bot *EventBot `json:"bot,omitempty"`
+}
+
 // Event is a single email-pipeline event for the team. Every field is always
 // present; fields that don't apply to a given event type are null on the wire
 // (nil pointers / zero values here) rather than absent.
@@ -59,6 +77,11 @@ type Event struct {
 	BounceClassification *string `json:"bounce_classification"`
 	// Attempt is the delivery attempt number, or nil for non-delivery events.
 	Attempt *int `json:"attempt"`
+	// Tracking is the tracking metadata, mirroring the webhook payload's
+	// data.tracking. Nil on every event except opens/clicks, and on human
+	// opens/clicks. Its Bot is set when the open/click came from a mailbox
+	// image proxy.
+	Tracking *EventTracking `json:"tracking"`
 }
 
 // EventListParams are the filters for EventsService.List. The window defaults to
