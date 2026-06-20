@@ -59,3 +59,7 @@ type Unsubscribe struct {
 // Bool is a helper for setting an optional *bool field, e.g.
 // Tracking{Opens: anypost.Bool(true)}.
 func Bool(v bool) *bool { return &v }
+
+// String is a helper for setting an optional *string field, e.g.
+// TemplateCreateParams{HTML: anypost.String("<h1>Hi</h1>")}.
+func String(v string) *string { return &v }

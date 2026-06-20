@@ -2,8 +2,12 @@
 
 The official Go client for the [Anypost](https://anypost.com) email API.
 
-Requires Go 1.23+. Zero dependencies — standard library only. Every call takes a
+Requires Go 1.23+. Zero dependencies (standard library only). Every call takes a
 `context.Context` and is safe for concurrent use.
+
+This README covers the SDK itself: installation, idioms, and configuration. For
+platform concepts and the full field-level API reference, see the [Anypost
+documentation](https://anypost.com/docs).
 
 ## Install
 
@@ -37,10 +41,10 @@ func main() {
 	}
 
 	sent, err := client.Email.Send(context.Background(), &anypost.SendEmailRequest{
-		From:    "Acme <you@yourdomain.com>",
-		To:      []string{"someone@example.com"},
-		Subject: "Hello from Anypost",
-		HTML:    "<p>It worked.</p>",
+		From:    "YourCo <you@yourdomain.com>",
+		To:      []string{"you@example.com"},
+		Subject: "Welcome to Anypost",
+		HTML:    "<p>Hello, inbox!</p>",
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -59,7 +63,7 @@ One of `Text`, `HTML`, or `TemplateID` is required. All recipients in `To`,
 
 ```go
 sent, err := client.Email.Send(ctx, &anypost.SendEmailRequest{
-	From:    "Acme <you@yourdomain.com>",
+	From:    "YourCo <you@yourdomain.com>",
 	To:      []string{"a@example.com", "b@example.com"},
 	CC:      []string{"team@example.com"},
 	ReplyTo: []string{"support@yourdomain.com"},
@@ -70,7 +74,7 @@ sent, err := client.Email.Send(ctx, &anypost.SendEmailRequest{
 })
 ```
 
-`Attachment.Content` is the raw file bytes — pass what `os.ReadFile` returns and
+`Attachment.Content` is the raw file bytes: pass what `os.ReadFile` returns and
 the SDK base64-encodes it on the wire. Do not pre-encode it. The request body is
 capped at 5 MB.
 
@@ -81,7 +85,7 @@ if err != nil {
 }
 
 _, err = client.Email.Send(ctx, &anypost.SendEmailRequest{
-	From:    "you@yourdomain.com",
+	From:    "YourCo <you@yourdomain.com>",
 	To:      []string{"someone@example.com"},
 	Subject: "Your report",
 	Text:    "Attached.",
@@ -95,12 +99,15 @@ Send with a published template and per-recipient variables:
 
 ```go
 _, err := client.Email.Send(ctx, &anypost.SendEmailRequest{
-	From:       "you@yourdomain.com",
+	From:       "YourCo <you@yourdomain.com>",
 	To:         []string{"someone@example.com"},
 	TemplateID: "template_018f2c5e-3a40-7a91-9c25-3a0b1d5e6f78",
 	Variables:  map[string]any{"name": "Ada", "plan": "pro"},
 })
 ```
+
+See the [send reference](https://anypost.com/docs/reference/emails) for the
+complete field list.
 
 ## Batch
 
@@ -110,7 +117,7 @@ the default; an entry that sets its own value wins. `To` is always per-entry.
 
 ```go
 result, err := client.Email.SendBatch(ctx, &anypost.EmailBatchRequest{
-	Defaults: &anypost.SendEmailRequest{From: "you@yourdomain.com"},
+	Defaults: &anypost.SendEmailRequest{From: "YourCo <you@yourdomain.com>"},
 	Emails: []anypost.SendEmailRequest{
 		{To: []string{"a@example.com"}, Subject: "Hi A", Text: "..."},
 		{To: []string{"b@example.com"}, Subject: "Hi B", Text: "..."},
@@ -146,22 +153,20 @@ if err != nil {
 for _, r := range domain.DNSRecords {
 	fmt.Printf("%s %s -> %s\n", r.Type, r.Name, r.Value)
 }
-```
 
-`Verify` always returns the current domain — a still-`pending` domain is not an
-error. Read `Status` and `VerificationFailure`, and poll while DNS propagates.
-
-```go
 checked, err := client.Domains.Verify(ctx, domain.ID)
 if err != nil {
 	log.Fatal(err)
 }
 if checked.Status != "verified" && checked.VerificationFailure != nil {
+	// Verify returns the current domain even while pending; it is not an error.
 	fmt.Println(checked.VerificationFailure.Code)
 }
 ```
 
-`Get`, `Update` (tracking config only), and `Delete` round out the resource.
+`Get`, `Update` (tracking config only), and `Delete` round out the resource. See
+[Domains](https://anypost.com/docs/reference/domains) for the verification
+lifecycle and field reference.
 
 ## API keys
 
@@ -180,8 +185,10 @@ if err != nil {
 fmt.Println(created.Key) // store now; never retrievable again
 ```
 
-`Get` returns metadata only — `KeyPrefix`, never the secret. Permission and
-restriction changes take up to 5 minutes to propagate through the gateway cache.
+`Get` returns metadata only (`KeyPrefix`, never the secret); `Update` and
+`Delete` round out the resource. See [API
+keys](https://anypost.com/docs/reference/api-keys) for the permission model and
+cache propagation.
 
 ## Templates
 
@@ -198,28 +205,23 @@ if err != nil {
 	log.Fatal(err)
 }
 
-_, err = client.Templates.UpdateDraft(ctx, tmpl.ID, &anypost.TemplateDraftParams{
-	Subject: anypost.String("Welcome to Acme"),
-	HTML:    anypost.String("<h1>Welcome, {{ name }}</h1>"),
-})
-if err != nil {
-	log.Fatal(err)
-}
 _, err = client.Templates.Publish(ctx, tmpl.ID)
 ```
 
-`Kind` is `html` or `markdown` and is immutable once set. `GetDraft`,
-`DeleteDraft`, `Duplicate`, `Get`, `Update` (name only), and `Delete` round out
-the resource. Send with a published template via `TemplateID` (see [Sending](#sending)).
-
 The pointer-string fields (`Subject`, `HTML`, `Markdown`) distinguish "unset"
 from an explicit empty string. `anypost.String` is a helper for setting them.
+
+`Kind` (`html` or `markdown`) is immutable once set. `GetDraft`, `UpdateDraft`,
+`DeleteDraft`, `Duplicate`, `Get`, `Update` (name only), and `Delete` round out
+the resource. Send a published template with `TemplateID` (see
+[Sending](#sending)). See
+[Templates](https://anypost.com/docs/reference/templates) for the full model.
 
 ## Suppressions
 
 A suppression blocks sends to an address, scoped to a `Topic`. The wildcard `*`
 blocks every topic; a specific topic (e.g. `marketing`) leaves transactional
-traffic untouched. Bounces and complaints write `*` automatically.
+traffic untouched.
 
 ```go
 _, err := client.Suppressions.Create(ctx, &anypost.SuppressionCreateParams{
@@ -228,16 +230,13 @@ _, err := client.Suppressions.Create(ctx, &anypost.SuppressionCreateParams{
 	Note:  "Customer requested removal",
 })
 
-row, err := client.Suppressions.Get(ctx, "alice@example.com", "*")
 err = client.Suppressions.Delete(ctx, "alice@example.com", "marketing")
-
-complaints, err := client.Suppressions.List(ctx, anypost.SuppressionListParams{
-	Reason: anypost.SuppressionReasonComplaint,
-})
 ```
 
-`ListForEmail` returns every row for an address across all topics;
-`DeleteForEmail` removes them all.
+`Get`, `List` (with `EmailContains`, `Topic`, `Reason`, and `Origin` filters),
+`ListForEmail`, and `DeleteForEmail` round out the resource. See
+[Suppressions](https://anypost.com/docs/reference/suppressions) for scoping and
+the automatic-suppression rules for bounces and complaints.
 
 ## Webhooks
 
@@ -256,17 +255,14 @@ if err != nil {
 fmt.Println(wh.SigningSecret) // store now; never retrievable again
 ```
 
-`Update` sets the name, URL, events, and `Status` together — set `Status` to
-`anypost.WebhookStatusDisabled` to pause delivery, `WebhookStatusActive` to
-resume. `Test` sends one synthetic `webhook.test` event and returns the outcome
-even when the endpoint fails. `RotateSecret` issues a new secret and keeps the
-previous one valid for a 24-hour grace window; `Get`, `List`, and `Delete` round
-out the resource.
+`Update`, `Test`, `RotateSecret`, `Get`, `List`, and `Delete` round out the
+resource. See [Webhooks](https://anypost.com/docs/reference/webhooks) for the
+event catalog, status transitions, and the secret-rotation grace window.
 
 ### Verifying deliveries
 
 `anypost.VerifyWebhookSignature` and `anypost.UnwrapWebhookEvent` are plain
-functions — they need the signing secret, not an API key, so call them in your
+functions: they need the signing secret, not an API key, so call them in your
 handler without a client. Pass the **raw** request body (the exact bytes, before
 JSON parsing), the `Anypost-Signature` header, and the secret.
 
@@ -291,7 +287,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 ```
 
 Reach for `VerifyWebhookSignature` when something else has already parsed the
-body — keep the raw bytes for the verify step, then use your parsed value once it
+body: keep the raw bytes for the verify step, then use your parsed value once it
 passes. Deliveries older than five minutes are rejected by default to bound
 replay; `WithTolerance` widens, narrows, or disables (`0`) that check, and
 `WithNow` overrides the clock in tests. During a secret rotation the header
@@ -302,7 +298,7 @@ deliveries keep verifying while you redeploy.
 
 `client.Events.List` pages the team's event stream, newest-first. The window
 defaults to the last 24 hours and is clamped to your plan's retention. Events are
-read-only and not addressable by id — there is no `Get`.
+read-only and not addressable by id, so there is no `Get`.
 
 ```go
 page, err := client.Events.List(ctx, anypost.EventListParams{EventType: anypost.EventBounced})
@@ -315,11 +311,11 @@ for _, e := range page.Data {
 ```
 
 Filter by `Start`, `End`, `EventType`, `Recipient`, `EmailID`, `MessageID`,
-`Domain`, `Topic`, `Campaign`, `TemplateID`, and `Tags`. All filters are
-exact-match, except `Tags`, which takes a slice and matches an event carrying
-*any* of the given tags. This is also how you backfill the gap after a webhook
-endpoint was disabled — page the events that occurred during the outage once it's
-healthy.
+`Domain`, `Topic`, `Campaign`, `TemplateID`, and `Tags`, a slice that matches an
+event carrying *any* of the given tags. Every other filter is exact-match. This
+is also how you backfill the gap after a webhook endpoint was disabled: page the
+events that occurred during the outage once it's healthy. See
+[Events](https://anypost.com/docs/reference/events) for the field reference.
 
 ## Pagination
 
@@ -344,7 +340,7 @@ for domain, err := range page.All(ctx) { // every domain, across all pages
 ## Errors
 
 A failed request returns an `*anypost.Error`. Recover it with `errors.As` and
-switch on `Type`, which is the stable, machine-readable `error.type` — branch on
+switch on `Type`, which is the stable, machine-readable `error.type`. Branch on
 it rather than on the HTTP status.
 
 ```go
