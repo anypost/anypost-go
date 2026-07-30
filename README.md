@@ -311,7 +311,7 @@ for _, e := range page.Data {
 ```
 
 Filter by `Start`, `End`, `EventType`, `Recipient`, `EmailID`, `MessageID`,
-`Domain`, `Topic`, `Campaign`, `TemplateID`, and `Tags`, a slice that matches an
+`Domain`, `Topic`, `Campaign`, `TemplateID`, `IPPool`, and `Tags`, a slice that matches an
 event carrying *any* of the given tags. Every other filter is exact-match. This
 is also how you backfill the gap after a webhook endpoint was disabled: page the
 events that occurred during the outage once it's healthy. See

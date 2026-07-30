@@ -37,6 +37,14 @@ type SendEmailRequest struct {
 	Campaign string `json:"campaign,omitempty"`
 	// Topic is the suppression scope / topic bucket ([a-z0-9_.-]{1,64}).
 	Topic string `json:"topic,omitempty"`
+	// IPPool names which of your dedicated IP pools this message sends from
+	// ([a-z0-9]([a-z0-9-]*[a-z0-9])?, at most 32 chars). Accounts with
+	// dedicated IPs and more than one named pool only. Unlike Tags, Topic and
+	// Campaign this is not a reporting label — it changes how the message is
+	// delivered, keeping one stream's reputation and queueing off another's.
+	// Leave zero to use the account's default pool; an unrecognized name
+	// returns 422 listing the pools the account does have.
+	IPPool string `json:"ip_pool,omitempty"`
 	// Tracking overrides the domain's open/click defaults for this message.
 	Tracking *Tracking `json:"tracking,omitempty"`
 	// Variables is the Handlebars substitution map. Encoded JSON must be <= 64 KB.

@@ -26,6 +26,18 @@ func TestEventsListThreadsTagsAndType(t *testing.T) {
 	}
 }
 
+func TestEventsListThreadsIPPool(t *testing.T) {
+	client, mock := newTestClient(t, jsonResponse(200, `{"data":[],"has_more":false,"next_cursor":null}`))
+
+	_, err := client.Events.List(context.Background(), EventListParams{IPPool: "marketing"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if url := mock.last().url; !strings.Contains(url, "ip_pool=marketing") {
+		t.Fatalf("ip_pool not in query: %s", url)
+	}
+}
+
 func TestEventsExposeBotOnProxiedOpen(t *testing.T) {
 	client, _ := newTestClient(t, jsonResponse(200, `{
 		"data": [

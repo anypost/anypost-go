@@ -69,9 +69,22 @@ type Event struct {
 	Topic *string `json:"topic"`
 	// Tags are the customer-supplied tags from the originating send.
 	Tags []string `json:"tags"`
+	// IPPool is which dedicated IP pool the message egressed from. Nil on
+	// sends that named no pool and on accounts without dedicated IPs. Set on
+	// every event for the message, not just email.sent, so bounce and
+	// complaint rates can be read per pool.
+	IPPool *string `json:"ip_pool"`
 	// SMTPCode is the SMTP reply code observed, or nil without an SMTP exchange.
 	SMTPCode *int `json:"smtp_code"`
-	// BounceType is the bounce type (e.g. Hard, Soft). Only on email.bounced.
+	// BounceType is why the message failed. Only on email.bounced, and one of:
+	//   "permanent" — the receiver refused the address outright (5xx). The
+	//                 address is suppressed; this is what counts against list
+	//                 quality.
+	//   "transient" — a temporary failure still unresolved when the message
+	//                 was reported, e.g. an out-of-band 4xx DSN.
+	//   "expired"   — aged out of the retry queue after 72 hours without ever
+	//                 reaching the receiver. Not a hard bounce, and the
+	//                 address is not suppressed.
 	BounceType *string `json:"bounce_type"`
 	// BounceClassification is the bounce classification. Only on email.bounced.
 	BounceClassification *string `json:"bounce_classification"`
@@ -107,6 +120,11 @@ type EventListParams struct {
 	Campaign string
 	// TemplateID is the template the originating send used.
 	TemplateID string
+	// IPPool restricts to mail that egressed from this named dedicated IP
+	// pool. Exact match against the [a-z0-9]([a-z0-9-]*[a-z0-9])? pool-name
+	// shape; a value outside it returns an empty list rather than being
+	// ignored, so a typo cannot silently widen the answer to "all pools".
+	IPPool string
 	// Tags restricts to events carrying any of these tags (hasAny). Up to 10.
 	Tags []string
 }
@@ -135,6 +153,7 @@ func (s *EventsService) fetchPage(ctx context.Context, params EventListParams, o
 	q.set("topic", params.Topic)
 	q.set("campaign", params.Campaign)
 	q.set("template_id", params.TemplateID)
+	q.set("ip_pool", params.IPPool)
 	// Sent comma-separated (tags=a,b); the API matches with hasAny.
 	if len(params.Tags) > 0 {
 		q.set("tags", strings.Join(params.Tags, ","))
