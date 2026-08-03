@@ -80,7 +80,7 @@ func TestDefaultHeaderIsSent(t *testing.T) {
 }
 
 func TestWhoamiParsesResponse(t *testing.T) {
-	client, _ := newTestClient(t, jsonResponse(200, `{"team":{"id":"team_1","name":"Acme"},"api_key":{"id":"key_9","permissions":"send_only"}}`))
+	client, _ := newTestClient(t, jsonResponse(200, `{"team":{"id":"team_1","name":"Acme"},"api_key":{"id":"key_9","permissions":"send_only"},"limits":{"daily":5000,"monthly":100000,"delivery_rate_per_minute":600}}`))
 	me, err := client.Whoami(context.Background())
 	if err != nil {
 		t.Fatalf("Whoami: %v", err)
@@ -90,5 +90,27 @@ func TestWhoamiParsesResponse(t *testing.T) {
 	}
 	if me.APIKey.Permissions != PermissionSendOnly {
 		t.Fatalf("permissions = %q", me.APIKey.Permissions)
+	}
+	if me.Limits == nil {
+		t.Fatal("limits = nil")
+	}
+	if me.Limits.Daily != 5000 || me.Limits.Monthly != 100000 {
+		t.Fatalf("limits = %+v", me.Limits)
+	}
+	if me.Limits.DeliveryRatePerMinute != 600 {
+		t.Fatalf("delivery rate = %d", me.Limits.DeliveryRatePerMinute)
+	}
+}
+
+// A team the gateway could not resolve returns a null limits block rather than
+// a set of zeros, which would read as a real quota of zero.
+func TestWhoamiNullLimits(t *testing.T) {
+	client, _ := newTestClient(t, jsonResponse(200, `{"team":null,"api_key":{"id":"key_9","permissions":"full"},"limits":null}`))
+	me, err := client.Whoami(context.Background())
+	if err != nil {
+		t.Fatalf("Whoami: %v", err)
+	}
+	if me.Limits != nil {
+		t.Fatalf("limits = %+v, want nil", me.Limits)
 	}
 }
