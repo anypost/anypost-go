@@ -3,6 +3,7 @@ package anypost
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -96,6 +97,75 @@ func TestAttachmentsAreBase64Encoded(t *testing.T) {
 	}
 	if att["content_type"] != "text/plain" {
 		t.Fatalf("content_type = %v", att["content_type"])
+	}
+}
+
+func TestAttachmentBase64ContentIsSentUnchanged(t *testing.T) {
+	client, mock := newTestClient(t, jsonResponse(202, `{"id":"email_1"}`))
+	if _, err := client.Email.Send(context.Background(), &SendEmailRequest{
+		From:    "you@x.com",
+		To:      []string{"a@example.com"},
+		Subject: "Report",
+		Text:    "Attached.",
+		Attachments: []Attachment{
+			{Filename: "hello.txt", ContentBase64: "aGVsbG8=", ContentType: "text/plain"},
+		},
+	}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	body := mock.last().json(t)
+	att := body["attachments"].([]any)[0].(map[string]any)
+	if att["content"] != "aGVsbG8=" {
+		t.Fatalf("content = %v, want the base64 passed in", att["content"])
+	}
+	// The wire object carries only `content` — neither Go field name leaks out.
+	if _, ok := att["content_base64"]; ok {
+		t.Fatal("content_base64 should not appear on the wire")
+	}
+	if att["content_type"] != "text/plain" {
+		t.Fatalf("content_type = %v", att["content_type"])
+	}
+}
+
+func TestAttachmentWithBothContentFormsErrors(t *testing.T) {
+	client, mock := newTestClient(t, jsonResponse(202, `{"id":"email_1"}`))
+	_, err := client.Email.Send(context.Background(), &SendEmailRequest{
+		From:    "you@x.com",
+		To:      []string{"a@example.com"},
+		Subject: "Report",
+		Text:    "Attached.",
+		Attachments: []Attachment{
+			{Filename: "hello.txt", Content: []byte("hello"), ContentBase64: "aGVsbG8="},
+		},
+	})
+	if err == nil {
+		t.Fatal("Send should reject an attachment that sets both content fields")
+	}
+	if !strings.Contains(err.Error(), "hello.txt") {
+		t.Fatalf("error should name the attachment, got: %v", err)
+	}
+	if mock.count() != 0 {
+		t.Fatal("no request should have been sent")
+	}
+}
+
+func TestAttachmentWithNoContentErrors(t *testing.T) {
+	client, mock := newTestClient(t, jsonResponse(202, `{"id":"email_1"}`))
+	_, err := client.Email.Send(context.Background(), &SendEmailRequest{
+		From:        "you@x.com",
+		To:          []string{"a@example.com"},
+		Subject:     "Report",
+		Text:        "Attached.",
+		Attachments: []Attachment{{Filename: "empty.txt"}},
+	})
+	if err == nil {
+		t.Fatal("Send should reject an attachment with no content")
+	}
+	if !strings.Contains(err.Error(), "empty.txt") {
+		t.Fatalf("error should name the attachment, got: %v", err)
+	}
+	if mock.count() != 0 {
+		t.Fatal("no request should have been sent")
 	}
 }
 

@@ -74,9 +74,11 @@ sent, err := client.Email.Send(ctx, &anypost.SendEmailRequest{
 })
 ```
 
-`Attachment.Content` is the raw file bytes: pass what `os.ReadFile` returns and
-the SDK base64-encodes it on the wire. Do not pre-encode it. The request body is
-capped at 5 MB.
+`Attachment.Content` takes the raw file bytes: pass what `os.ReadFile` returns
+and the SDK base64-encodes them on the wire. When the content is already base64
+at rest, set `Attachment.ContentBase64` instead — that string is sent verbatim,
+so nothing is decoded just to be re-encoded. Set exactly one of the two. The
+request body is capped at 5 MB.
 
 ```go
 pdf, err := os.ReadFile("report.pdf")
