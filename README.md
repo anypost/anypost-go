@@ -235,6 +235,20 @@ _, err := client.Suppressions.Create(ctx, &anypost.SuppressionCreateParams{
 err = client.Suppressions.Delete(ctx, "alice@example.com", "marketing")
 ```
 
+Add up to 1,000 at once with `CreateBatch`:
+
+```go
+result, err := client.Suppressions.CreateBatch(ctx, []anypost.SuppressionBatchItem{
+	{Email: "alice@example.com", Reason: "hard bounce"},
+	{Email: "bob@example.com", Topic: "marketing"},
+})
+// result.Imported, result.AlreadySuppressed, result.Invalid
+```
+
+Addresses that are already suppressed are counted and left unchanged, so a
+batch is safe to retry, and invalid addresses are returned in `Invalid` rather
+than failing the call.
+
 `Get`, `List` (with `EmailContains`, `Topic`, `Reason`, and `Origin` filters),
 `ListForEmail`, and `DeleteForEmail` round out the resource. See
 [Suppressions](https://anypost.com/docs/reference/suppressions) for scoping and
